@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ESP32 Solar Monitor</title>
+
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -79,16 +80,6 @@
         }
         .last-update { font-family: monospace; color: #f39c12; font-weight: bold; }
         .loading { text-align: center; padding: 50px; background: white; border-radius: 20px; }
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #f39c12;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .error { text-align: center; padding: 50px; background: white; border-radius: 20px; color: red; }
         .table-container {
             background: rgba(255, 255, 255, 0.95);
@@ -102,127 +93,106 @@
         th { background: linear-gradient(135deg, #f39c12, #e67e22); color: white; }
     </style>
 </head>
+
 <body>
-    <div class="container">
-        <div class="header">
-            <h1><span>☀️</span> ESP32 Solar Thermal Monitor</h1>
-            <div class="device-badge" id="deviceBadge">Loading...</div>
-            <button onclick="logout()">🔒 Logout</button>
-        </div>
-        <div id="content"><div class="loading"><div class="spinner"></div><p>Loading data from Google Sheets...</p></div></div>
+<div class="container">
+    <div class="header">
+        <h1>☀️ ESP32 Solar Thermal Monitor</h1>
+        <div class="device-badge" id="deviceBadge">Loading...</div>
+        <button onclick="logout()">🔒 Logout</button>
     </div>
 
-    <script>
-        // ===== YOUR WEB APP URL =====
-        const GOOGLE_SHEETS_API = "https://cors-anywhere.herokuapp.com/ + https://script.google.com/macros/s/AKfycbyOL9E1RWbZ4_8sng38seRTiVuVrokTuXbGXq42uCtWWPcaC5mXVYUkC2Y5Caxo0KRe6g/exec";
-        
-        // TRY DIFFERENT PROXIES - UNCOMMENT THE ONE YOU WANT TO TRY:
-        
-        // Proxy 1: allorigins (may have rate limits)
-        //const GOOGLE_SHEETS_API = "https://api.allorigins.win/raw?url=" + encodeURIComponent(YOUR_SCRIPT_URL);
-        
-        // Proxy 2: cors-anywhere (reliable)
-         //const GOOGLE_SHEETS_API = "https://cors-anywhere.herokuapp.com/" + YOUR_SCRIPT_URL;
-        
-        // Proxy 3: codetabs (simple)
-        //const GOOGLE_SHEETS_API = "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(YOUR_SCRIPT_URL);
-        
-        // Proxy 4: Direct (no proxy - may not work due to CORS)
-         //
-        
-        let deviceId = localStorage.getItem('selectedDeviceId');
-        let updateInterval;
-        
-        if (!deviceId) {
-            window.location.href = 'index.html';
-        }
-        
-        document.getElementById('deviceBadge').innerHTML = 📡 ${deviceId};
-        
-        async function fetchData() {
-            console.log("Fetching from:", GOOGLE_SHEETS_API);
-            
-            try {
-                const response = await fetch(GOOGLE_SHEETS_API);
-                console.log("Response status:", response.status);
-                
-                if (!response.ok) {
-                    throw new Error(HTTP ${response.status});
-                }
-                
-                let data = await response.json();
-                console.log("Raw data:", data);
-                
-                // Handle different response formats from proxies
-                if (data.contents) {
-                    data = JSON.parse(data.contents);
-                }
-                
-                if (!data || data.length === 0) {
-                    document.getElementById('content').innerHTML = <div class="loading"><h3>Waiting for data...</h3><p>No data in Google Sheets yet.</p><button onclick="fetchData()">Refresh</button></div>;
-                    return;
-                }
-                
-                // Get the latest reading
-                const latest = data[data.length - 1];
-                console.log("Latest data:", latest);
-                
-                const last20 = data.slice(-20).reverse();
-                
-                const Tin = latest.Temperature_In || 0;
-                const Tout = latest.Temperature_Out || 0;
-                const deltaT = (Tout - Tin).toFixed(1);
-                const Q = latest.Thermal_Power_W || 0;
-                const energy = latest.Thermal_Energy_J || 0;
-                const efficiency = latest.Energy_Efficiency_Pct || latest.Power_Efficiency_Pct || 0;
-                const solarPower = latest.Solar_Power_W || 0;
-                
-                document.getElementById('content').innerHTML = `
-                    <div class="status-card">
-                        <div>✅ Device: ${deviceId}</div>
-                        <div class="last-update">🕒 Last update: ${new Date(latest.Timestamp).toLocaleString()}</div>
-                    </div>
-                    <div class="metrics-grid">
-                        <div class="metric-card"><div class="metric-icon">🌡️</div><div class="metric-label">INLET TEMP (T1)</div><div class="metric-value">${Tin.toFixed(1)}<span class="metric-unit">°C</span></div></div>
-                        <div class="metric-card"><div class="metric-icon">🌡️</div><div class="metric-label">OUTLET TEMP (T2)</div><div class="metric-value">${Tout.toFixed(1)}<span class="metric-unit">°C</span></div></div>
-                        <div class="metric-card"><div class="metric-icon">📊</div><div class="metric-label">DELTA T (ΔT)</div><div class="metric-value">${deltaT}<span class="metric-unit">°C</span></div></div>
-                        <div class="metric-card"><div class="metric-icon">⚡</div><div class="metric-label">THERMAL POWER</div><div class="metric-value">${Q.toFixed(1)}<span class="metric-unit">W</span></div></div>
-                        <div class="metric-card"><div class="metric-icon">🔋</div><div class="metric-label">ENERGY</div><div class="metric-value">${(energy / 1000).toFixed(1)}<span class="metric-unit">kJ</span></div></div>
-                        <div class="metric-card"><div class="metric-icon">🎯</div><div class="metric-label">EFFICIENCY</div><div class="metric-value">${efficiency.toFixed(1)}<span class="metric-unit">%</span></div></div>
-                        <div class="metric-card"><div class="metric-icon">☀️</div><div class="metric-label">SOLAR POWER</div><div class="metric-value">${solarPower.toFixed(1)}<span class="metric-unit">W</span></div></div>
-                    </div>
-                    <div class="table-container">
-                        <h3>📜 Historical Data</h3>
-                        <table><thead><tr><th>Time</th><th>T1</th><th>T2</th><th>Q</th><th>Energy</th><th>Eff</th></tr></thead>
-                        <tbody>
-                            ${last20.map(entry => `
-                                <tr>
-                                    <td>${new Date(entry.Timestamp).toLocaleTimeString()}</td>
-                                    <td>${(entry.Temperature_In || 0).toFixed(1)}°C</td>
-                                    <td>${(entry.Temperature_Out || 0).toFixed(1)}°C</td>
-                                    <td>${(entry.Thermal_Power_W || 0).toFixed(1)}W</td>
-                                    <td>${((entry.Thermal_Energy_J || 0) / 1000).toFixed(1)}kJ</td>
-                                    <td>${(entry.Energy_Efficiency_Pct || 0).toFixed(1)}%</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                    </div>
-                `;
-            } catch (error) {
-                console.error("Error:", error);
-                document.getElementById('content').innerHTML = <div class="error"><h3>❌ Connection Error</h3><p>${error.message}</p><button onclick="fetchData()">Retry</button><p style="margin-top:10px;font-size:12px;">Try uncommenting a different proxy in the code</p></div>;
-            }
-        }
-        
-        function logout() {
-            if (updateInterval) clearInterval(updateInterval);
-            localStorage.removeItem('selectedDeviceId');
-            window.location.href = 'index.html';
-        }
-        
-        fetchData();
-        updateInterval = setInterval(fetchData, 15000);
-    </script>
+    <div id="content">
+        <div class="loading">Loading data...</div>
+    </div>
+</div>
+
+<script>
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyOL9E1RWbZ4_8sng38seRTiVuVrokTuXbGXq42uCtWWPcaC5mXVYUkC2Y5Caxo0KRe6g/exec";
+
+let deviceId = localStorage.getItem('selectedDeviceId');
+let updateInterval;
+
+if (!deviceId) {
+    window.location.href = 'index.html';
+}
+
+document.getElementById('deviceBadge').innerHTML = 📡 ${deviceId};
+
+// JSONP loader
+function loadData() {
+    const script = document.createElement("script");
+    script.src = SCRIPT_URL + "?callback=handleData";
+    document.body.appendChild(script);
+}
+
+// Handle data (replaces fetch)
+function handleData(data) {
+
+    if (!data || data.length === 0) {
+        document.getElementById('content').innerHTML =
+            <div class="loading"><h3>No data yet</h3></div>;
+        return;
+    }
+
+    const latest = data[data.length - 1];
+    const last20 = data.slice(-20).reverse();
+
+    const Tin = latest.Temperature_In || 0;
+    const Tout = latest.Temperature_Out || 0;
+    const deltaT = (Tout - Tin).toFixed(1);
+    const Q = latest.Thermal_Power_W || 0;
+    const energy = latest.Thermal_Energy_J || 0;
+    const efficiency = latest.Energy_Efficiency_Pct || latest.Power_Efficiency_Pct || 0;
+    const solarPower = latest.Solar_Power_W || 0;
+
+    document.getElementById('content').innerHTML = `
+        <div class="status-card">
+            <div>✅ Device: ${deviceId}</div>
+            <div class="last-update">🕒 ${new Date(latest.Timestamp).toLocaleString()}</div>
+        </div>
+
+        <div class="metrics-grid">
+            <div class="metric-card"><div class="metric-label">T1</div><div class="metric-value">${Tin.toFixed(1)} °C</div></div>
+            <div class="metric-card"><div class="metric-label">T2</div><div class="metric-value">${Tout.toFixed(1)} °C</div></div>
+            <div class="metric-card"><div class="metric-label">ΔT</div><div class="metric-value">${deltaT} °C</div></div>
+            <div class="metric-card"><div class="metric-label">Power</div><div class="metric-value">${Q.toFixed(1)} W</div></div>
+            <div class="metric-card"><div class="metric-label">Energy</div><div class="metric-value">${(energy/1000).toFixed(1)} kJ</div></div>
+            <div class="metric-card"><div class="metric-label">Eff</div><div class="metric-value">${efficiency.toFixed(1)} %</div></div>
+            <div class="metric-card"><div class="metric-label">Solar</div><div class="metric-value">${solarPower.toFixed(1)} W</div></div>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr><th>Time</th><th>T1</th><th>T2</th><th>Q</th><th>Energy</th><th>Eff</th></tr>
+                </thead>
+                <tbody>
+                    ${last20.map(entry => `
+                        <tr>
+                            <td>${new Date(entry.Timestamp).toLocaleTimeString()}</td>
+                            <td>${(entry.Temperature_In || 0).toFixed(1)}</td>
+                            <td>${(entry.Temperature_Out || 0).toFixed(1)}</td>
+                            <td>${(entry.Thermal_Power_W || 0).toFixed(1)}</td>
+                            <td>${((entry.Thermal_Energy_J || 0)/1000).toFixed(1)}</td>
+                            <td>${(entry.Energy_Efficiency_Pct || 0).toFixed(1)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+function logout() {
+    if (updateInterval) clearInterval(updateInterval);
+    localStorage.removeItem('selectedDeviceId');
+    window.location.href = 'index.html';
+}
+
+loadData();
+updateInterval = setInterval(loadData, 15000);
+</script>
+
 </body>
 </html>
