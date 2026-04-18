@@ -1,1 +1,1 @@
-{"deviceId":"SolarCollector1","temperature_in":18.1875,"temperature_out":17.8125,"delta_temperature":-0.375,"Q":-1569.75,"energy":604.1403,"efficiency":-301790,"solar_power":0.520146,"solar_intensity":52.01465,"timestamp":"1282165"}
+{"deviceId":"SolarCollector1","temperature_in":18.1875,"temperature_out":17.75,"delta_temperature":-0.4375,"Q":-1831.375,"energy":621.4832,"efficiency":-355425.6,"solar_power":0.515263,"solar_intensity":51.52625,"timestamp":"1315756"}
