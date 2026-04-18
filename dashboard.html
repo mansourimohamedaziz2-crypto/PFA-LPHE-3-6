@@ -108,90 +108,30 @@
 </div>
 
 <script>
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwo_wwsLIYUlX64-RyJEHcpl03R2VgEY7OXuTBqrzqTbiML5NTXCWYN4mggnVw_6QkAYg/exec";
+<script>
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyOL9E1RWbZ4_8sng38seRTiVuVrokTuXbGXq42uCtWWPcaC5mXVYUkC2Y5Caxo0KRe6g/exec";
 
-let deviceId = localStorage.getItem('selectedDeviceId');
-let updateInterval;
-
-if (!deviceId) {
-    window.location.href = 'index.html';
+function handleData(data) {
+    console.log("🔥 DATA RECEIVED:", data);
+    document.body.innerHTML = "<h1>WORKS</h1>";
 }
 
-document.getElementById('deviceBadge').innerHTML = 📡 ${deviceId};
-
-// JSONP loader
 function loadData() {
+    console.log("🚀 Loading script...");
+
     const script = document.createElement("script");
-    script.src = SCRIPT_URL + "?callback=handleData";
+    script.id = "jsonpScript";
+
+    script.onload = () => console.log("✅ Script loaded");
+    script.onerror = (e) => console.error("❌ Script failed", e);
+
+    script.src = SCRIPT_URL + "?callback=handleData&t=" + Date.now();
+
     document.body.appendChild(script);
 }
 
-// Handle data (replaces fetch)
-function handleData(data) {
-
-    if (!data || data.length === 0) {
-        document.getElementById('content').innerHTML =
-            <div class="loading"><h3>No data yet</h3></div>;
-        return;
-    }
-
-    const latest = data[data.length - 1];
-    const last20 = data.slice(-20).reverse();
-
-    const Tin = latest.Temperature_In || 0;
-    const Tout = latest.Temperature_Out || 0;
-    const deltaT = (Tout - Tin).toFixed(1);
-    const Q = latest.Thermal_Power_W || 0;
-    const energy = latest.Thermal_Energy_J || 0;
-    const efficiency = latest.Energy_Efficiency_Pct || latest.Power_Efficiency_Pct || 0;
-    const solarPower = latest.Solar_Power_W || 0;
-
-    document.getElementById('content').innerHTML = `
-        <div class="status-card">
-            <div>✅ Device: ${deviceId}</div>
-            <div class="last-update">🕒 ${new Date(latest.Timestamp).toLocaleString()}</div>
-        </div>
-
-        <div class="metrics-grid">
-            <div class="metric-card"><div class="metric-label">T1</div><div class="metric-value">${Tin.toFixed(1)} °C</div></div>
-            <div class="metric-card"><div class="metric-label">T2</div><div class="metric-value">${Tout.toFixed(1)} °C</div></div>
-            <div class="metric-card"><div class="metric-label">ΔT</div><div class="metric-value">${deltaT} °C</div></div>
-            <div class="metric-card"><div class="metric-label">Power</div><div class="metric-value">${Q.toFixed(1)} W</div></div>
-            <div class="metric-card"><div class="metric-label">Energy</div><div class="metric-value">${(energy/1000).toFixed(1)} kJ</div></div>
-            <div class="metric-card"><div class="metric-label">Eff</div><div class="metric-value">${efficiency.toFixed(1)} %</div></div>
-            <div class="metric-card"><div class="metric-label">Solar</div><div class="metric-value">${solarPower.toFixed(1)} W</div></div>
-        </div>
-
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr><th>Time</th><th>T1</th><th>T2</th><th>Q</th><th>Energy</th><th>Eff</th></tr>
-                </thead>
-                <tbody>
-                    ${last20.map(entry => `
-                        <tr>
-                            <td>${new Date(entry.Timestamp).toLocaleTimeString()}</td>
-                            <td>${(entry.Temperature_In || 0).toFixed(1)}</td>
-                            <td>${(entry.Temperature_Out || 0).toFixed(1)}</td>
-                            <td>${(entry.Thermal_Power_W || 0).toFixed(1)}</td>
-                            <td>${((entry.Thermal_Energy_J || 0)/1000).toFixed(1)}</td>
-                            <td>${(entry.Energy_Efficiency_Pct || 0).toFixed(1)}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        </div>
-    `;
-}
-
-function logout() {
-    if (updateInterval) clearInterval(updateInterval);
-    localStorage.removeItem('selectedDeviceId');
-    window.location.href = 'index.html';
-}
-
 loadData();
-updateInterval = setInterval(loadData, 15000);
+</script>
 </script>
 
 </body>
