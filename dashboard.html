@@ -113,9 +113,22 @@
     </div>
 
     <script>
-        // ===== REPLACE WITH YOUR WEB APP URL (with CORS proxy) =====
+        // ===== YOUR WEB APP URL =====
         const YOUR_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyLxaI7BUqJCUZKex5QsTN15QX9c8scNgSeNVBDPMiQNgIDwPesbOj20pmd0p8N6r_Dvg/exec";
+        
+        // TRY DIFFERENT PROXIES - UNCOMMENT THE ONE YOU WANT TO TRY:
+        
+        // Proxy 1: allorigins (may have rate limits)
         const GOOGLE_SHEETS_API = "https://api.allorigins.win/raw?url=" + encodeURIComponent(YOUR_SCRIPT_URL);
+        
+        // Proxy 2: cors-anywhere (reliable)
+        // const GOOGLE_SHEETS_API = "https://cors-anywhere.herokuapp.com/" + YOUR_SCRIPT_URL;
+        
+        // Proxy 3: codetabs (simple)
+        // const GOOGLE_SHEETS_API = "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(YOUR_SCRIPT_URL);
+        
+        // Proxy 4: Direct (no proxy - may not work due to CORS)
+        // const GOOGLE_SHEETS_API = YOUR_SCRIPT_URL;
         
         let deviceId = localStorage.getItem('selectedDeviceId');
         let updateInterval;
@@ -137,22 +150,25 @@
                     throw new Error(HTTP ${response.status});
                 }
                 
-                const data = await response.json();
-                console.log("Data received:", data);
+                let data = await response.json();
+                console.log("Raw data:", data);
+                
+                // Handle different response formats from proxies
+                if (data.contents) {
+                    data = JSON.parse(data.contents);
+                }
                 
                 if (!data || data.length === 0) {
                     document.getElementById('content').innerHTML = <div class="loading"><h3>Waiting for data...</h3><p>No data in Google Sheets yet.</p><button onclick="fetchData()">Refresh</button></div>;
                     return;
                 }
                 
-                // Get the latest reading (last row)
+                // Get the latest reading
                 const latest = data[data.length - 1];
                 console.log("Latest data:", latest);
                 
-                // Get last 20 readings for history
                 const last20 = data.slice(-20).reverse();
                 
-                // Map column names
                 const Tin = latest.Temperature_In || 0;
                 const Tout = latest.Temperature_Out || 0;
                 const deltaT = (Tout - Tin).toFixed(1);
@@ -163,40 +179,39 @@
                 
                 document.getElementById('content').innerHTML = `
                     <div class="status-card">
-                        <div>✅ Device: ${deviceId} - Connected to Google Sheets</div>
+                        <div>✅ Device: ${deviceId}</div>
                         <div class="last-update">🕒 Last update: ${new Date(latest.Timestamp).toLocaleString()}</div>
                     </div>
                     <div class="metrics-grid">
-                        <div class="metric-card"><div class="metric-icon">🌡️</div><div class="metric-label">INLET TEMP (T1)</div><div class="metric-value">${typeof Tin === 'number' ? Tin.toFixed(1) : Tin}<span class="metric-unit">°C</span></div></div>
-                        <div class="metric-card"><div class="metric-icon">🌡️</div><div class="metric-label">OUTLET TEMP (T2)</div><div class="metric-value">${typeof Tout === 'number' ? Tout.toFixed(1) : Tout}<span class="metric-unit">°C</span></div></div>
+                        <div class="metric-card"><div class="metric-icon">🌡️</div><div class="metric-label">INLET TEMP (T1)</div><div class="metric-value">${Tin.toFixed(1)}<span class="metric-unit">°C</span></div></div>
+                        <div class="metric-card"><div class="metric-icon">🌡️</div><div class="metric-label">OUTLET TEMP (T2)</div><div class="metric-value">${Tout.toFixed(1)}<span class="metric-unit">°C</span></div></div>
                         <div class="metric-card"><div class="metric-icon">📊</div><div class="metric-label">DELTA T (ΔT)</div><div class="metric-value">${deltaT}<span class="metric-unit">°C</span></div></div>
-                        <div class="metric-card"><div class="metric-icon">⚡</div><div class="metric-label">THERMAL POWER (Q)</div><div class="metric-value">${typeof Q === 'number' ? Q.toFixed(1) : Q}<span class="metric-unit">W</span></div></div>
-                        <div class="metric-card"><div class="metric-icon">🔋</div><div class="metric-label">ENERGY</div><div class="metric-value">${typeof energy === 'number' ? (energy / 1000).toFixed(1) : energy}<span class="metric-unit">kJ</span></div></div>
-                        <div class="metric-card"><div class="metric-icon">🎯</div><div class="metric-label">EFFICIENCY</div><div class="metric-value">${typeof efficiency === 'number' ? efficiency.toFixed(1) : efficiency}<span class="metric-unit">%</span></div></div>
-                        <div class="metric-card"><div class="metric-icon">☀️</div><div class="metric-label">SOLAR POWER</div><div class="metric-value">${typeof solarPower === 'number' ? solarPower.toFixed(1) : solarPower}<span class="metric-unit">W</span></div></div>
+                        <div class="metric-card"><div class="metric-icon">⚡</div><div class="metric-label">THERMAL POWER</div><div class="metric-value">${Q.toFixed(1)}<span class="metric-unit">W</span></div></div>
+                        <div class="metric-card"><div class="metric-icon">🔋</div><div class="metric-label">ENERGY</div><div class="metric-value">${(energy / 1000).toFixed(1)}<span class="metric-unit">kJ</span></div></div>
+                        <div class="metric-card"><div class="metric-icon">🎯</div><div class="metric-label">EFFICIENCY</div><div class="metric-value">${efficiency.toFixed(1)}<span class="metric-unit">%</span></div></div>
+                        <div class="metric-card"><div class="metric-icon">☀️</div><div class="metric-label">SOLAR POWER</div><div class="metric-value">${solarPower.toFixed(1)}<span class="metric-unit">W</span></div></div>
                     </div>
                     <div class="table-container">
-                        <h3>📜 Historical Data (Last ${last20.length} readings)</h3>
-                        <table>
-                            <thead><tr><th>Time</th><th>T1 (°C)</th><th>T2 (°C)</th><th>Q (W)</th><th>Energy (kJ)</th><th>Eff (%)</th></tr></thead>
-                            <tbody>
-                                ${last20.map(entry => `
-                                    <tr>
-                                        <td>${new Date(entry.Timestamp).toLocaleTimeString()}</td>
-                                        <td>${(entry.Temperature_In || 0).toFixed(1)}</td>
-                                        <td>${(entry.Temperature_Out || 0).toFixed(1)}</td>
-                                        <td>${(entry.Thermal_Power_W || 0).toFixed(1)}</td>
-                                        <td>${((entry.Thermal_Energy_J || 0) / 1000).toFixed(1)}</td>
-                                        <td>${(entry.Energy_Efficiency_Pct || 0).toFixed(1)}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
+                        <h3>📜 Historical Data</h3>
+                        <table><thead><tr><th>Time</th><th>T1</th><th>T2</th><th>Q</th><th>Energy</th><th>Eff</th></tr></thead>
+                        <tbody>
+                            ${last20.map(entry => `
+                                <tr>
+                                    <td>${new Date(entry.Timestamp).toLocaleTimeString()}</td>
+                                    <td>${(entry.Temperature_In || 0).toFixed(1)}°C</td>
+                                    <td>${(entry.Temperature_Out || 0).toFixed(1)}°C</td>
+                                    <td>${(entry.Thermal_Power_W || 0).toFixed(1)}W</td>
+                                    <td>${((entry.Thermal_Energy_J || 0) / 1000).toFixed(1)}kJ</td>
+                                    <td>${(entry.Energy_Efficiency_Pct || 0).toFixed(1)}%</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
                     </div>
                 `;
             } catch (error) {
                 console.error("Error:", error);
-                document.getElementById('content').innerHTML = <div class="error"><h3>❌ Connection Error</h3><p>${error.message}</p><button onclick="fetchData()">Retry</button></div>;
+                document.getElementById('content').innerHTML = <div class="error"><h3>❌ Connection Error</h3><p>${error.message}</p><button onclick="fetchData()">Retry</button><p style="margin-top:10px;font-size:12px;">Try uncommenting a different proxy in the code</p></div>;
             }
         }
         
