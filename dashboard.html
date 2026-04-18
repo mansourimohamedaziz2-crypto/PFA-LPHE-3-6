@@ -106,30 +106,144 @@
         <div class="loading">Loading data...</div>
     </div>
 </div>
+    <script>
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx63zAz0E3fxA8fNSwbIIVnXH5B04K6Ypp8seHpC9Ar9uannQsmofQA7OsTrzOf1YBR1w/exec"";
 
-<script>
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx63zAz0E3fxA8fNSwbIIVnXH5B04K6Ypp8seHpC9Ar9uannQsmofQA7OsTrzOf1YBR1w/exec";
+let deviceId = localStorage.getItem('selectedDeviceId');
+let updateInterval;
 
-function handleData(data) {
-    console.log("🔥 DATA RECEIVED:", data);
-    document.body.innerHTML = "<h1>WORKS</h1>";
+if (!deviceId) {
+    window.location.href = 'index.html';
 }
+
+document.getElementById('deviceBadge').innerHTML = 📡 ${deviceId};
+
+// ===================== DATA HANDLER =====================
+function handleData(data) {
+    console.log("DATA RECEIVED:", data);
+
+    if (!data || data.length === 0) {
+        document.getElementById('content').innerHTML =
+            <div class="loading">No data available</div>;
+        return;
+    }
+
+    const latest = data[data.length - 1];
+    const last20 = data.slice(-20).reverse();
+
+    const Tin = parseFloat(latest.Temperature_In || 0);
+    const Tout = parseFloat(latest.Temperature_Out || 0);
+    const deltaT = (Tout - Tin).toFixed(1);
+
+    const Q = parseFloat(latest.Thermal_Power_W || 0);
+    const energy = parseFloat(latest.Thermal_Energy_J || 0);
+    const efficiency = parseFloat(latest.Energy_Efficiency_Pct || latest.Power_Efficiency_Pct || 0);
+    const solarPower = parseFloat(latest.Solar_Power_W || 0);
+
+    document.getElementById('content').innerHTML = `
+        <div class="status-card">
+            <div>✅ Device: ${deviceId}</div>
+            <div class="last-update">🕒 ${new Date(latest.Timestamp).toLocaleString()}</div>
+        </div>
+
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-icon">🌡️</div>
+                <div class="metric-label">INLET TEMP</div>
+                <div class="metric-value">${Tin.toFixed(1)}<span class="metric-unit">°C</span></div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-icon">🌡️</div>
+                <div class="metric-label">OUTLET TEMP</div>
+                <div class="metric-value">${Tout.toFixed(1)}<span class="metric-unit">°C</span></div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-icon">📊</div>
+                <div class="metric-label">ΔT</div>
+                <div class="metric-value">${deltaT}<span class="metric-unit">°C</span></div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-icon">⚡</div>
+                <div class="metric-label">THERMAL POWER</div>
+                <div class="metric-value">${Q.toFixed(1)}<span class="metric-unit">W</span></div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-icon">🔋</div>
+                <div class="metric-label">ENERGY</div>
+                <div class="metric-value">${(energy / 1000).toFixed(1)}<span class="metric-unit">kJ</span></div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-icon">🎯</div>
+                <div class="metric-label">EFFICIENCY</div>
+                <div class="metric-value">${efficiency.toFixed(1)}<span class="metric-unit">%</span></div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-icon">☀️</div>
+                <div class="metric-label">SOLAR POWER</div>
+                <div class="metric-value">${solarPower.toFixed(1)}<span class="metric-unit">W</span></div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <h3>📜 Historical Data</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>T1</th>
+                        <th>T2</th>
+                        <th>Q</th>
+                        <th>Energy</th>
+                        <th>Eff</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${last20.map(entry => `
+                        <tr>
+                            <td>${new Date(entry.Timestamp).toLocaleTimeString()}</td>
+                            <td>${(entry.Temperature_In || 0).toFixed(1)}</td>
+                            <td>${(entry.Temperature_Out || 0).toFixed(1)}</td>
+                            <td>${(entry.Thermal_Power_W || 0).toFixed(1)}</td>
+                            <td>${((entry.Thermal_Energy_J || 0) / 1000).toFixed(1)}</td>
+                            <td>${(entry.Energy_Efficiency_Pct || 0).toFixed(1)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+// ===================== LOADER =====================
 function loadData() {
-    console.log("Loading script...");
+    const old = document.getElementById("jsonpScript");
+    if (old) old.remove();
 
     const script = document.createElement("script");
     script.id = "jsonpScript";
-
-    script.onload = () => console.log("✅ Script loaded");
-    script.onerror = (e) => console.error("❌ Script failed", e);
-
     script.src = SCRIPT_URL + "?callback=handleData&t=" + Date.now();
+
+    script.onerror = () => console.error("Script failed to load");
 
     document.body.appendChild(script);
 }
 
+// ===================== START =====================
 loadData();
-</script>
+updateInterval = setInterval(loadData, 15000);
 
+function logout() {
+    if (updateInterval) clearInterval(updateInterval);
+    localStorage.removeItem('selectedDeviceId');
+    window.location.href = 'index.html';
+}
+</script>
+    
 </body>
 </html>
