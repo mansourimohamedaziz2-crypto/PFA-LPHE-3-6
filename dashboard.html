@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ESP32 Solar Monitor</title>
-
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -12,8 +11,9 @@
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             min-height: 100vh;
             padding: 20px;
+            color: #333;
         }
-        .container { max-width: 1400px; margin: 0 auto; }
+        .container { max-width: 1200px; margin: 0 auto; }
         .header {
             background: rgba(255, 255, 255, 0.95);
             padding: 20px 30px;
@@ -23,8 +23,9 @@
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
         }
-        h1 { color: #1a1a2e; display: flex; align-items: center; gap: 10px; }
+        h1 { color: #1a1a2e; display: flex; align-items: center; gap: 10px; font-size: 1.5rem; }
         .device-badge {
             background: linear-gradient(135deg, #f39c12, #e67e22);
             color: white;
@@ -32,18 +33,9 @@
             border-radius: 30px;
             font-weight: bold;
         }
-        button {
-            background: linear-gradient(135deg, #f39c12, #e67e22);
-            color: white;
-            border: none;
-            padding: 10px 25px;
-            border-radius: 30px;
-            cursor: pointer;
-            font-weight: bold;
-        }
         .metrics-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 25px;
             margin-bottom: 30px;
         }
@@ -53,83 +45,86 @@
             border-radius: 20px;
             text-align: center;
             transition: transform 0.3s;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
         }
         .metric-card:hover { transform: translateY(-5px); }
-        .metric-icon { font-size: 48px; margin-bottom: 15px; }
-        .metric-label { font-size: 14px; color: #666; text-transform: uppercase; letter-spacing: 2px; }
+        .metric-label { font-size: 14px; color: #666; text-transform: uppercase; letter-spacing: 1px; font-weight: bold; }
         .metric-value {
             font-size: 42px;
             font-weight: bold;
-            background: linear-gradient(135deg, #f39c12, #e67e22);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
+            color: #e67e22;
             margin: 10px 0;
         }
-        .metric-unit { font-size: 18px; color: #666; }
-        .status-card {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 20px;
-            border-radius: 20px;
-            margin-bottom: 30px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
+        .loading, .error { 
+            text-align: center; 
+            padding: 50px; 
+            background: white; 
+            border-radius: 20px; 
+            font-weight: bold;
         }
-        .last-update { font-family: monospace; color: #f39c12; font-weight: bold; }
-        .loading { text-align: center; padding: 50px; background: white; border-radius: 20px; }
-        .error { text-align: center; padding: 50px; background: white; border-radius: 20px; color: red; }
-        .table-container {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            padding: 20px;
-            overflow-x: auto;
-            margin-top: 30px;
-        }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-        th { background: linear-gradient(135deg, #f39c12, #e67e22); color: white; }
+        .error { color: #e74c3c; }
     </style>
 </head>
-
 <body>
+
 <div class="container">
     <div class="header">
-        <h1>☀️ ESP32 Solar Thermal Monitor</h1>
-        <div class="device-badge" id="deviceBadge">Loading...</div>
-        <button onclick="logout()">🔒 Logout</button>
+        <h1>☀️ ESP32 Solar Monitor</h1>
+        <div class="device-badge" id="status-text">Connecting...</div>
     </div>
 
     <div id="content">
-        <div class="loading">Loading data...</div>
+        <div class="loading" id="loader">Fetching data...</div>
+        <div class="metrics-grid" id="metrics-container" style="display: none;"></div>
     </div>
 </div>
 
 <script>
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyOL9E1RWbZ4_8sng38seRTiVuVrokTuXbGXq42uCtWWPcaC5mXVYUkC2Y5Caxo0KRe6g/exec";
 
-function handleData(data) {
-    console.log("🔥 DATA RECEIVED:", data);
-    document.body.innerHTML = "<h1>WORKS</h1>";
-}
+async function loadData() {
+    const loader = document.getElementById('loader');
+    const container = document.getElementById('metrics-container');
+    const statusText = document.getElementById('status-text');
 
-function loadData() {
-    console.log("Loading script...");
+    try {
+        const response = await fetch(SCRIPT_URL);
+        if (!response.ok) throw new Error();
+        
+        const data = await response.json();
 
-    const script = document.createElement("script");
-    script.id = "jsonpScript";
-
-    script.onload = () => console.log("✅ Script loaded");
-    script.onerror = (e) => console.error("❌ Script failed", e);
-
-    script.src = SCRIPT_URL + "?callback=handleData&t=" + Date.now();
-
-    document.body.appendChild(script);
+        loader.style.display = 'none';
+        container.style.display = 'grid';
+        statusText.innerText = "Online";
+        
+        container.innerHTML = `
+            <div class="metric-card">
+                <div class="metric-label">Temperature</div>
+                <div class="metric-value">${data.temp || '--'}</div>
+                <div class="metric-label">Celsius</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Voltage</div>
+                <div class="metric-value">${data.volt || '--'}</div>
+                <div class="metric-label">Volts</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Status</div>
+                <div class="metric-value" style="font-size: 24px;">${data.status || 'Active'}</div>
+            </div>
+        `;
+    } catch (error) {
+        loader.innerHTML = <div class="error">Connection Error</div>;
+        statusText.innerText = "Offline";
+    }
 }
 
 loadData();
+setInterval(loadData, 30000);
+
+function logout() {
+    window.location.reload();
+}
 </script>
 
 </body>
