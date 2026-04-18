@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32 Solar Monitor - Live Dashboard</title>
+    <title>ESP32 Solar Monitor</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -53,7 +52,6 @@
             border-radius: 20px;
             text-align: center;
             transition: transform 0.3s;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
         }
         .metric-card:hover { transform: translateY(-5px); }
         .metric-icon { font-size: 48px; margin-bottom: 15px; }
@@ -65,7 +63,6 @@
             -webkit-background-clip: text;
             background-clip: text;
             color: transparent;
-            margin: 10px 0;
         }
         .metric-unit { font-size: 18px; color: #666; }
         .status-card {
@@ -79,6 +76,15 @@
             flex-wrap: wrap;
         }
         .last-update { font-family: monospace; color: #f39c12; font-weight: bold; }
+        .table-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 20px;
+            overflow-x: auto;
+        }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: linear-gradient(135deg, #f39c12, #e67e22); color: white; }
         .loading { text-align: center; padding: 50px; background: white; border-radius: 20px; }
         .spinner {
             width: 50px;
@@ -90,6 +96,7 @@
             margin: 0 auto 20px;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @media (max-width: 768px) { .metric-value { font-size: 32px; } }
     </style>
 </head>
 <body>
@@ -99,13 +106,12 @@
             <div class="device-badge" id="deviceBadge">Loading...</div>
             <button onclick="logout()">🔒 Logout</button>
         </div>
-        <div id="content"><div class="loading"><div class="spinner"></div><p>Loading data from ThingSpeak...</p></div></div>
+        <div id="content"><div class="loading"><div class="spinner"></div><p>Loading data from Google Sheets...</p></div></div>
     </div>
     <script>
-        // ===== THINGSPEAK CONFIGURATION =====
-        // Replace with your ThingSpeak Channel ID and Read API Key
-        const CHANNEL_ID = 3347431;  // ← CHANGE THIS to your ThingSpeak Channel ID
-        const READ_API_KEY = "U2NLJMI9M2ORH9FM";  // ← CHANGE THIS to your Read API Key
+        // ===== GOOGLE SHEETS API CONFIGURATION =====
+        // REPLACE with your Web App URL from Step 3
+        const GOOGLE_SHEETS_API = "https://script.google.com/macros/s/AKfycbx2wwJtkgP6pboBRZmn1bZZW-y8Jz-5Sl-kk_q7Xk77Lfpfdwi1VU3kklk9wp3QUDINOw/exec";
         
         let deviceId = localStorage.getItem('selectedDeviceId');
         let updateInterval;
@@ -117,38 +123,35 @@
         document.getElementById('deviceBadge').innerHTML = 📡 ${deviceId};
         
         async function fetchData() {
-            // Get the last 1 entry from ThingSpeak
-            const url = https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds/last.json?api_key=${READ_API_KEY};
-            
             try {
-                const response = await fetch(url);
-                if (!response.ok) {
+                const response = await fetch(GOOGLE_SHEETS_API);
+                if (!response.ok) throw new Error('Network response was not ok');
+                
+                const data = await response.json();
+                
+                if (data.length === 0) {
                     document.getElementById('content').innerHTML = <div class="loading"><h3>Waiting for data from ${deviceId}</h3><p>ESP32 is online. First upload in progress...</p><button onclick="location.reload()">Refresh</button></div>;
                     return;
                 }
                 
-                const data = await response.json();
+                // Get the most recent reading (last row)
+                const latest = data[data.length - 1];
                 
-                // ThingSpeak fields mapping:
-                // field1 = Temperature In (T1)
-                // field2 = Temperature Out (T2)  
-                // field3 = Thermal Power (Q)
-                // field4 = Energy
-                // field5 = Efficiency
-                // field6 = Solar Power
-                
-                const Tin = parseFloat(data.field1) || 0;
-                const Tout = parseFloat(data.field2) || 0;
+                const Tin = latest.Temperature_In || 0;
+                const Tout = latest.Temperature_Out || 0;
                 const deltaT = Tout - Tin;
-                const Q = parseFloat(data.field3) || 0;
-                const energy = parseFloat(data.field4) || 0;
-                const efficiency = parseFloat(data.field5) || 0;
-                const solarPower = parseFloat(data.field6) || 0;
+                const Q = latest.Q_Power_W || 0;
+                const energy = latest.Energy_J || 0;
+                const efficiency = latest.Efficiency_Pct || 0;
+                const solarPower = latest.Solar_Power_W || 0;
+                
+                // Get last 20 readings for history table
+                const last20 = data.slice(-20).reverse();
                 
                 document.getElementById('content').innerHTML = `
                     <div class="status-card">
-                        <div>✅ Device: ${deviceId} - Data from ThingSpeak</div>
-                        <div class="last-update">🕒 Last update: ${new Date(data.created_at).toLocaleString()}</div>
+                        <div>✅ Device: ${deviceId} - Data from Google Sheets</div>
+                        <div class="last-update">🕒 Last update: ${new Date(latest.Timestamp).toLocaleString()}</div>
                     </div>
                     <div class="metrics-grid">
                         <div class="metric-card"><div class="metric-icon">🌡️</div><div class="metric-label">INLET TEMP (T1)</div><div class="metric-value">${Tin.toFixed(1)}<span class="metric-unit">°C</span></div></div>
@@ -158,6 +161,24 @@
                         <div class="metric-card"><div class="metric-icon">🔋</div><div class="metric-label">ENERGY</div><div class="metric-value">${energy.toFixed(1)}<span class="metric-unit">J</span></div></div>
                         <div class="metric-card"><div class="metric-icon">🎯</div><div class="metric-label">EFFICIENCY</div><div class="metric-value">${efficiency.toFixed(1)}<span class="metric-unit">%</span></div></div>
                         <div class="metric-card"><div class="metric-icon">☀️</div><div class="metric-label">SOLAR POWER</div><div class="metric-value">${solarPower.toFixed(1)}<span class="metric-unit">W</span></div></div>
+                    </div>
+                    <div class="table-container">
+                        <h3>📜 Historical Data (Last ${last20.length} readings)</h3>
+                        <table>
+                            <thead><tr><th>Time</th><th>T1 (°C)</th><th>T2 (°C)</th><th>Q (W)</th><th>Energy (J)</th><th>Eff (%)</th></tr></thead>
+                            <tbody>
+                                ${last20.map(entry => `
+                                    <tr>
+                                        <td>${new Date(entry.Timestamp).toLocaleTimeString()}</td>
+                                        <td>${entry.Temperature_In.toFixed(1)}</td>
+                                        <td>${entry.Temperature_Out.toFixed(1)}</td>
+                                        <td>${entry.Q_Power_W.toFixed(1)}</td>
+                                        <td>${entry.Energy_J.toFixed(1)}</td>
+                                        <td>${entry.Efficiency_Pct.toFixed(1)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
                     </div>
                 `;
             } catch (error) {
@@ -173,7 +194,7 @@
         }
         
         fetchData();
-        updateInterval = setInterval(fetchData, 15000); // Refresh every 15 seconds
+        updateInterval = setInterval(fetchData, 15000);
     </script>
 </body>
 </html>
