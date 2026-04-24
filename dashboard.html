@@ -80,7 +80,6 @@
         }
         .last-update { font-family: monospace; color: #f39c12; font-weight: bold; }
         .loading { text-align: center; padding: 50px; background: white; border-radius: 20px; }
-        .error { text-align: center; padding: 50px; background: white; border-radius: 20px; color: red; }
         .table-container {
             background: rgba(255, 255, 255, 0.95);
             border-radius: 20px;
@@ -103,10 +102,11 @@
     </div>
 
     <div id="content">
-        <div class="loading">Loading data...</div>
+        <div class="loading">Loading data from Google Sheets...</div>
     </div>
 </div>
-    <script>
+
+<script>
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxZ0PyfG73cPwqc3H8RVpKFC3Sgy6zc689Y7O7uZFtawIS8LJcqtpqg5sbxt7XmU0e8rQ/exec";
 
 let deviceId = localStorage.getItem('selectedDeviceId');
@@ -116,48 +116,24 @@ if (!deviceId) {
     window.location.href = 'index.html';
 }
 
-document.getElementById('deviceBadge').innerHTML = '📡 ${deviceId}';
+document.getElementById('deviceBadge').innerHTML = `📡 ${deviceId}`;
 
+function handleData(data) {
+    console.log("DATA RECEIVED:", data);
 
-<table>
-                <thead>
-                    <tr>
-                        <th>Time</th>
-                        <th>T1</th>
-                        <th>T2</th>
-                        <th>Q</th>
-                        <th>Energy</th>
-                        <th>Eff</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${last20.map(entry => {
-                        // 1. Convert strings to actual numbers
-                        const tIn = parseFloat(entry.Temperature_In || 0);
-                        const tOut = parseFloat(entry.Temperature_Out || 0);
-                        const pwr = parseFloat(entry.Thermal_Power_W || 0);
-                        const nrg = parseFloat(entry.Thermal_Energy_J || 0);
-                        const eff = parseFloat(entry.Energy_Efficiency_Pct || 0);
+    if (!data || data.length === 0) {
+        document.getElementById('content').innerHTML =
+            '<div class="loading">No data available in the sheet</div>';
+        return;
+    }
 
-                        // 2. Return the table row with formatted numbers
-                        return `
-                        <tr>
-                            <td>${new Date(entry.Timestamp).toLocaleTimeString()}</td>
-                            <td>${tIn.toFixed(1)}</td>
-                            <td>${tOut.toFixed(1)}</td>
-                            <td>${pwr.toFixed(1)}</td>
-                            <td>${(nrg / 1000).toFixed(1)}</td>
-                            <td>${eff.toFixed(1)}%</td>
-                        </tr>
-                    `;
-                    }).join('')}
-                </tbody>
-            </table>
+    const latest = data[data.length - 1];
+    const last20 = data.slice(-20).reverse();
 
+    // Latest values for the top cards - safely parsing strings to numbers
     const Tin = parseFloat(latest.Temperature_In || 0);
     const Tout = parseFloat(latest.Temperature_Out || 0);
     const deltaT = (Tout - Tin).toFixed(1);
-
     const Q = parseFloat(latest.Thermal_Power_W || 0);
     const energy = parseFloat(latest.Thermal_Energy_J || 0);
     const efficiency = parseFloat(latest.Energy_Efficiency_Pct || latest.Power_Efficiency_Pct || 0);
@@ -165,8 +141,8 @@ document.getElementById('deviceBadge').innerHTML = '📡 ${deviceId}';
 
     document.getElementById('content').innerHTML = `
         <div class="status-card">
-            <div>✅ Device: ${deviceId}</div>
-            <div class="last-update">🕒 ${new Date(latest.Timestamp).toLocaleString()}</div>
+            <div>✅ Device Status: Active</div>
+            <div class="last-update">🕒 Last Update: ${new Date(latest.Timestamp).toLocaleString()}</div>
         </div>
 
         <div class="metrics-grid">
@@ -175,37 +151,31 @@ document.getElementById('deviceBadge').innerHTML = '📡 ${deviceId}';
                 <div class="metric-label">INLET TEMP</div>
                 <div class="metric-value">${Tin.toFixed(1)}<span class="metric-unit">°C</span></div>
             </div>
-
             <div class="metric-card">
                 <div class="metric-icon">🌡️</div>
                 <div class="metric-label">OUTLET TEMP</div>
                 <div class="metric-value">${Tout.toFixed(1)}<span class="metric-unit">°C</span></div>
             </div>
-
             <div class="metric-card">
                 <div class="metric-icon">📊</div>
                 <div class="metric-label">ΔT</div>
                 <div class="metric-value">${deltaT}<span class="metric-unit">°C</span></div>
             </div>
-
             <div class="metric-card">
                 <div class="metric-icon">⚡</div>
                 <div class="metric-label">THERMAL POWER</div>
                 <div class="metric-value">${Q.toFixed(1)}<span class="metric-unit">W</span></div>
             </div>
-
             <div class="metric-card">
                 <div class="metric-icon">🔋</div>
                 <div class="metric-label">ENERGY</div>
                 <div class="metric-value">${(energy / 1000).toFixed(1)}<span class="metric-unit">kJ</span></div>
             </div>
-
             <div class="metric-card">
                 <div class="metric-icon">🎯</div>
                 <div class="metric-label">EFFICIENCY</div>
                 <div class="metric-value">${efficiency.toFixed(1)}<span class="metric-unit">%</span></div>
             </div>
-
             <div class="metric-card">
                 <div class="metric-icon">☀️</div>
                 <div class="metric-label">SOLAR POWER</div>
@@ -214,29 +184,37 @@ document.getElementById('deviceBadge').innerHTML = '📡 ${deviceId}';
         </div>
 
         <div class="table-container">
-            <h3>📜 Historical Data</h3>
+            <h3>📜 Historical Data (Last 20 Entries)</h3>
             <table>
                 <thead>
                     <tr>
                         <th>Time</th>
-                        <th>T1</th>
-                        <th>T2</th>
-                        <th>Q</th>
-                        <th>Energy</th>
-                        <th>Eff</th>
+                        <th>Inlet (°C)</th>
+                        <th>Outlet (°C)</th>
+                        <th>Power (W)</th>
+                        <th>Energy (kJ)</th>
+                        <th>Efficiency (%)</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${last20.map(entry => `
-                        <tr>
-                            <td>${new Date(entry.Timestamp).toLocaleTimeString()}</td>
-                            <td>${(entry.Temperature_In || 0).toFixed(1)}</td>
-                            <td>${(entry.Temperature_Out || 0).toFixed(1)}</td>
-                            <td>${(entry.Thermal_Power_W || 0).toFixed(1)}</td>
-                            <td>${((entry.Thermal_Energy_J || 0) / 1000).toFixed(1)}</td>
-                            <td>${(entry.Energy_Efficiency_Pct || 0).toFixed(1)}</td>
-                        </tr>
-                    `).join('')}
+                    ${last20.map(entry => {
+                        const rowTin = parseFloat(entry.Temperature_In || 0);
+                        const rowTout = parseFloat(entry.Temperature_Out || 0);
+                        const rowPwr = parseFloat(entry.Thermal_Power_W || 0);
+                        const rowNrg = parseFloat(entry.Thermal_Energy_J || 0);
+                        const rowEff = parseFloat(entry.Energy_Efficiency_Pct || 0);
+                        
+                        return `
+                            <tr>
+                                <td>${new Date(entry.Timestamp).toLocaleTimeString()}</td>
+                                <td>${rowTin.toFixed(1)}</td>
+                                <td>${rowTout.toFixed(1)}</td>
+                                <td>${rowPwr.toFixed(1)}</td>
+                                <td>${(rowNrg / 1000).toFixed(1)}</td>
+                                <td>${rowEff.toFixed(1)}</td>
+                            </tr>
+                        `;
+                    }).join('')}
                 </tbody>
             </table>
         </div>
@@ -252,7 +230,11 @@ function loadData() {
     script.id = "jsonpScript";
     script.src = SCRIPT_URL + "?callback=handleData&t=" + Date.now();
 
-    script.onerror = () => console.error("Script failed to load");
+    script.onerror = () => {
+        console.error("Script failed to load");
+        document.getElementById('content').innerHTML = 
+            '<div class="error">Failed to connect to Google Sheets. Check your URL.</div>';
+    };
 
     document.body.appendChild(script);
 }
@@ -270,3 +252,6 @@ function logout() {
     
 </body>
 </html>
+
+
+
