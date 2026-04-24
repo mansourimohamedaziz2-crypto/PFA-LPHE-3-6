@@ -119,17 +119,40 @@ if (!deviceId) {
 document.getElementById('deviceBadge').innerHTML = '📡 ${deviceId}';
 
 
-function handleData(data) {
-    console.log("DATA RECEIVED:", data);
+<table>
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>T1</th>
+                        <th>T2</th>
+                        <th>Q</th>
+                        <th>Energy</th>
+                        <th>Eff</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${last20.map(entry => {
+                        // 1. Convert strings to actual numbers
+                        const tIn = parseFloat(entry.Temperature_In || 0);
+                        const tOut = parseFloat(entry.Temperature_Out || 0);
+                        const pwr = parseFloat(entry.Thermal_Power_W || 0);
+                        const nrg = parseFloat(entry.Thermal_Energy_J || 0);
+                        const eff = parseFloat(entry.Energy_Efficiency_Pct || 0);
 
-    if (!data || data.length === 0) {
-        document.getElementById('content').innerHTML =
-            '<div class="loading">No data available</div>';
-        return;
-    }
-
-    const latest = data[data.length - 1];
-    const last20 = data.slice(-20).reverse();
+                        // 2. Return the table row with formatted numbers
+                        return `
+                        <tr>
+                            <td>${new Date(entry.Timestamp).toLocaleTimeString()}</td>
+                            <td>${tIn.toFixed(1)}</td>
+                            <td>${tOut.toFixed(1)}</td>
+                            <td>${pwr.toFixed(1)}</td>
+                            <td>${(nrg / 1000).toFixed(1)}</td>
+                            <td>${eff.toFixed(1)}%</td>
+                        </tr>
+                    `;
+                    }).join('')}
+                </tbody>
+            </table>
 
     const Tin = parseFloat(latest.Temperature_In || 0);
     const Tout = parseFloat(latest.Temperature_Out || 0);
